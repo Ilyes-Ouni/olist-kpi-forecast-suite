@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+
+streamlit.out.log
+streamlit.err.log
+
+data/raw/
+data/processed/
+models/
+
+.venv/
+venv/
