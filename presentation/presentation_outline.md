@@ -17,7 +17,7 @@ AI + BI Academic Project
 - AI forecasting model for the next 30 days of sales
 - anomaly detection for abnormal spikes and drops
 - product segmentation for strategic management
-- recommendation engine for action points
+- recommendation engine powered by a GRU sequence model
 
 ## Slide 4: Dataset
 
@@ -32,7 +32,8 @@ AI + BI Academic Project
 3. Forecasting model
 4. Anomaly detection
 5. Product segmentation
-6. Dashboard development
+6. GRU recommendation model
+7. Dashboard development
 
 ## Slide 6: BI Layer
 

@@ -13,3 +13,8 @@ models/
 
 .venv/
 venv/
+
+# secrets — never commit API keys
+.env
+.env.local
+*.pem

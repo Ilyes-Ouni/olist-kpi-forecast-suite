@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from urllib.request import urlretrieve
 
 import joblib
@@ -534,12 +535,21 @@ def run_pipeline() -> dict[str, object]:
     )
     semantic_outputs = build_semantic_outputs(clean_df, order_summary, customer_summary, product_segments)
 
+    recommendation_metrics: dict[str, float] = {}
+    recommendation_metrics_path = MODELS_DIR / "recommendation_gru_metrics.json"
+    if recommendation_metrics_path.exists():
+        recommendation_metrics = json.loads(recommendation_metrics_path.read_text(encoding="utf-8"))
+        # Keep forecast + recommendation metrics together for the dashboard/report.
+        forecast_artifacts.metrics = {**forecast_artifacts.metrics, **recommendation_metrics}
+
     clean_df.to_csv(PROCESSED_DIR / "clean_retail.csv", index=False)
     order_summary.to_csv(PROCESSED_DIR / "order_summary.csv", index=False)
     customer_summary.to_csv(PROCESSED_DIR / "customer_summary.csv", index=False)
     daily_sales.to_csv(PROCESSED_DIR / "daily_sales.csv", index=False)
     forecast_artifacts.forecast_actuals.to_csv(PROCESSED_DIR / "forecast_actuals.csv", index=False)
     forecast_artifacts.future_forecast.to_csv(PROCESSED_DIR / "future_forecast.csv", index=False)
+    forecast_artifacts.comparison.to_csv(PROCESSED_DIR / "model_comparison.csv", index=False)
+    forecast_artifacts.candidate_actuals.to_csv(PROCESSED_DIR / "forecast_candidate_actuals.csv", index=False)
     anomalies.to_csv(PROCESSED_DIR / "anomalies.csv", index=False)
     product_segments.to_csv(PROCESSED_DIR / "product_segments.csv", index=False)
     recommendations.to_csv(PROCESSED_DIR / "recommendations.csv", index=False)
@@ -558,7 +568,12 @@ def run_pipeline() -> dict[str, object]:
     save_json(PROCESSED_DIR / "model_metrics.json", forecast_artifacts.metrics)
     save_json(PROCESSED_DIR / "preprocessing_summary.json", preprocessing_summary)
     build_markdown_report(REPORTS_DIR / "project_summary.md", kpis, forecast_artifacts.metrics, recommendations)
-    joblib.dump(forecast_artifacts.model, MODELS_DIR / "forecast_model.joblib")
+    try:
+        joblib.dump(forecast_artifacts.model, MODELS_DIR / "forecast_model.joblib")
+    except Exception:
+        # Prophet (and some boosters) can be awkward to pickle on certain setups.
+        (MODELS_DIR / "forecast_model_name.txt").write_text(forecast_artifacts.model_name, encoding="utf-8")
+    (MODELS_DIR / "selected_forecast_model.txt").write_text(forecast_artifacts.model_name, encoding="utf-8")
 
     return {
         "clean_df": clean_df,
@@ -567,6 +582,8 @@ def run_pipeline() -> dict[str, object]:
         "daily_sales": daily_sales,
         "forecast_actuals": forecast_artifacts.forecast_actuals,
         "future_forecast": forecast_artifacts.future_forecast,
+        "model_comparison": forecast_artifacts.comparison,
+        "forecast_candidate_actuals": forecast_artifacts.candidate_actuals,
         "anomalies": anomalies,
         "product_segments": product_segments,
         "aggregates": aggregates,

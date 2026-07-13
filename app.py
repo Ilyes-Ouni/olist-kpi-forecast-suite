@@ -27,7 +27,8 @@ def format_money(value: float) -> str:
 
 
 @st.cache_data(show_spinner=False)
-def load_or_build() -> dict[str, pd.DataFrame | dict]:
+def load_or_build(cache_version: str = "forecast_compare_v1") -> dict[str, pd.DataFrame | dict]:
+    _ = cache_version  # bump this string whenever recommendation schema/text pipeline changes
     processed_dir = PROJECT_ROOT / "data" / "processed"
     required_files = [
         "clean_retail.csv",
@@ -36,6 +37,8 @@ def load_or_build() -> dict[str, pd.DataFrame | dict]:
         "daily_sales.csv",
         "future_forecast.csv",
         "forecast_actuals.csv",
+        "model_comparison.csv",
+        "forecast_candidate_actuals.csv",
         "anomalies.csv",
         "product_segments.csv",
         "state_performance.csv",
@@ -61,6 +64,8 @@ def load_or_build() -> dict[str, pd.DataFrame | dict]:
         "daily_sales": pd.read_csv(processed_dir / "daily_sales.csv", parse_dates=["date"]),
         "future_forecast": pd.read_csv(processed_dir / "future_forecast.csv", parse_dates=["date"]),
         "forecast_actuals": pd.read_csv(processed_dir / "forecast_actuals.csv", parse_dates=["date"]),
+        "model_comparison": pd.read_csv(processed_dir / "model_comparison.csv"),
+        "forecast_candidate_actuals": pd.read_csv(processed_dir / "forecast_candidate_actuals.csv", parse_dates=["date"]),
         "anomalies": pd.read_csv(processed_dir / "anomalies.csv", parse_dates=["date"]),
         "product_segments": pd.read_csv(processed_dir / "product_segments.csv"),
         "state_performance": pd.read_csv(processed_dir / "state_performance.csv"),
@@ -236,19 +241,61 @@ with tab2:
     st.dataframe(data["scaler_summary"], width="stretch", hide_index=True)
 
 with tab3:
+    selected_model = str(metrics.get("selected_model", "selected model"))
+    st.caption(
+        f"Candidates compared on the hold-out window (train before cutoff). "
+        f"Winner selected by lowest RMSE, then MAPE → **{selected_model}**."
+    )
+
+    comparison = data["model_comparison"].copy()
+    for col in ["mae", "mse", "rmse", "mape", "r2"]:
+        if col in comparison.columns:
+            comparison[col] = pd.to_numeric(comparison[col], errors="coerce")
+    if "mae" in comparison.columns:
+        comparison["mae"] = comparison["mae"].round(0)
+    if "mse" in comparison.columns:
+        comparison["mse"] = comparison["mse"].round(0)
+    if "rmse" in comparison.columns:
+        comparison["rmse"] = comparison["rmse"].round(0)
+    if "mape" in comparison.columns:
+        comparison["mape"] = comparison["mape"].round(2)
+    if "r2" in comparison.columns:
+        comparison["r2"] = comparison["r2"].round(3)
+    display_cols = [c for c in ["model", "mae", "mse", "rmse", "mape", "r2", "selected"] if c in comparison.columns]
+    st.dataframe(comparison[display_cols], width="stretch", hide_index=True)
+
     forecast_left, forecast_right = st.columns([2, 1])
     combined = data["forecast_actuals"][["date", "daily_revenue", "predicted_revenue"]].copy()
     future = data["future_forecast"].copy()
     forecast_fig = go.Figure()
     forecast_fig.add_trace(go.Scatter(x=combined["date"], y=combined["daily_revenue"], name="Actual revenue"))
-    forecast_fig.add_trace(go.Scatter(x=combined["date"], y=combined["predicted_revenue"], name="Predicted revenue"))
-    forecast_fig.add_trace(go.Scatter(x=future["date"], y=future["predicted_revenue"], name="Future forecast"))
-    forecast_fig.update_layout(title="Daily Sales Forecast")
+    forecast_fig.add_trace(go.Scatter(x=combined["date"], y=combined["predicted_revenue"], name=f"{selected_model} (hold-out)"))
+    forecast_fig.add_trace(go.Scatter(x=future["date"], y=future["predicted_revenue"], name=f"{selected_model} future"))
+
+    # Overlay other candidates on the test window for visual comparison.
+    candidates = data["forecast_candidate_actuals"]
+    for col in candidates.columns:
+        if col.startswith("pred_") and col != f"pred_{selected_model}":
+            forecast_fig.add_trace(
+                go.Scatter(
+                    x=candidates["date"],
+                    y=candidates[col],
+                    name=col.replace("pred_", ""),
+                    line=dict(dash="dot"),
+                    opacity=0.55,
+                )
+            )
+
+    forecast_fig.update_layout(title=f"Daily Sales Forecast — selected: {selected_model}")
     forecast_left.plotly_chart(forecast_fig, width="stretch")
 
-    forecast_right.metric("MAE", f"{metrics['mae']:,.0f}")
-    forecast_right.metric("RMSE", f"{metrics['rmse']:,.0f}")
-    forecast_right.metric("MAPE", f"{metrics['mape']:.1f}%")
+    forecast_right.metric("Selected model", selected_model)
+    forecast_right.metric("MAE", f"{float(metrics['mae']):,.0f}")
+    forecast_right.metric("MSE", f"{float(metrics.get('mse', 0)):,.0f}")
+    forecast_right.metric("RMSE", f"{float(metrics['rmse']):,.0f}")
+    forecast_right.metric("MAPE", f"{float(metrics['mape']):.1f}%")
+    if "r2" in metrics:
+        forecast_right.metric("R²", f"{float(metrics['r2']):.3f}")
     forecast_right.metric("Accuracy Proxy", f"{kpis['forecast_accuracy_pct']:.1f}%")
 
     anomaly_fig = px.scatter(
@@ -322,10 +369,29 @@ with tab4:
     )
 
 with tab5:
-    st.metric("Top State", kpis["top_state"])
-    st.metric("Top Category", kpis["top_category"])
+    st.markdown("### GRU + Groq recommendations")
+    st.caption(
+        "Hybrid pipeline: GRU scores themes from daily sequences → structured fact pack → "
+        "Groq LLM (llama-3.3-70b-versatile) writes action/evidence text. "
+        "Falls back to local NLG if the API is unavailable. "
+        "Clear cache (☰ → Clear cache) if wording looks stale."
+    )
+    rec_metrics = data["model_metrics"]
+    if "recommendation_f1_micro" in rec_metrics:
+        m1, m2, m3 = st.columns(3)
+        m1.metric("GRU micro-F1", f"{rec_metrics['recommendation_f1_micro']:.2f}")
+        m2.metric("Sequence length", int(rec_metrics.get("sequence_length", 14)))
+        m3.metric("Training windows", int(rec_metrics.get("train_windows", 0)))
+
     for _, row in data["recommendations"].iterrows():
         with st.container(border=True):
-            st.markdown(f"**{row['priority']} | {row['theme']}**")
+            confidence = row["model_confidence"] if "model_confidence" in row and pd.notna(row["model_confidence"]) else None
+            severity = row["severity"] if "severity" in row and pd.notna(row["severity"]) else None
+            title = f"{row['priority']} | {row['theme']}"
+            if confidence is not None:
+                title = f"{title} · confidence {float(confidence):.0%}"
+            if severity is not None:
+                title = f"{title} · {severity}"
+            st.markdown(f"**{title}**")
             st.write(row["recommendation"])
             st.caption(row["evidence"])

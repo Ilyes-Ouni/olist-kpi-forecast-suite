@@ -40,7 +40,7 @@ Retail organisations usually monitor past sales through descriptive dashboards, 
 - Forecasting with Gradient Boosting Regressor
 - Anomaly detection with Isolation Forest and Z-score
 - Product clustering with K-Means
-- Rule-based business recommendations
+- Dynamic GRU recommendations for business actions
 
 ## Deliverables
 

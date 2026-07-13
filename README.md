@@ -91,11 +91,11 @@ The BI component provides:
 
 The AI component includes:
 
-- daily sales forecasting using machine learning
+- daily sales forecasting with multi-model comparison (Gradient Boosting, XGBoost, Prophet)
 - anomaly detection for unusual revenue patterns
 - customer segmentation using RFM logic
 - product segmentation using clustering
-- recommendation logic based on analytical outputs
+- dynamic business recommendations using a GRU sequence model
 
 ### 5. Dashboard
 
@@ -113,6 +113,7 @@ The dashboard was developed with Streamlit and includes:
 - Pandas
 - NumPy
 - scikit-learn
+- PyTorch
 - Plotly
 - Streamlit
 - Joblib
@@ -187,16 +188,24 @@ Additional preprocessing files include:
 - Rows after cleaning: `95,351`
 - Noisy rows removed: `17,839`
 
+## Forecasting model selection
+
+The forecasting layer compares **Gradient Boosting**, **XGBoost**, and **Prophet** on the same hold-out period.
+
+Metrics stored per model: **MAE, MSE, RMSE, MAPE, R²**.
+
+**Selection rule:** lowest RMSE, then lowest MAPE as a tie-breaker. Only the winner produces the official next-30-day forecast shown in KPIs and recommendations.
+
 ## Recommendation Logic
 
-The recommendation module is rule-based. It uses results from forecasting, anomaly detection, category analysis, customer segmentation, product segmentation, and geography performance to generate business actions such as:
+The recommendation module uses a hybrid **GRU + fact-pack + Groq LLM** pipeline:
 
-- inventory adjustment
-- operations investigation
-- customer experience improvement
-- product portfolio review
-- customer retention actions
-- geography benchmarking
+1. Train a small GRU on 14-day multivariate sales sequences to score action themes.
+2. Build a structured **fact pack** from forecasts, anomalies, category/customer/product/geography analytics.
+3. Ask **Groq** (`llama-3.3-70b-versatile` by default) to write action/evidence sentences from that fact pack.
+4. If the API key is missing or the call fails, fall back to local fact-pack NLG.
+
+Secrets: put `GROQ_API_KEY` in a local `.env` file (see `.env.example`). `.env` is gitignored and must never be committed.
 
 ## Academic Value
 
