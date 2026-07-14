@@ -27,7 +27,7 @@ def format_money(value: float) -> str:
 
 
 @st.cache_data(show_spinner=False)
-def load_or_build(cache_version: str = "forecast_compare_v1") -> dict[str, pd.DataFrame | dict]:
+def load_or_build(cache_version: str = "demo_pack_v1") -> dict[str, pd.DataFrame | dict]:
     _ = cache_version  # bump this string whenever recommendation schema/text pipeline changes
     processed_dir = PROJECT_ROOT / "data" / "processed"
     required_files = [
@@ -120,7 +120,7 @@ if "Description" in data["product_segments"].columns:
     data["product_segments"] = data["product_segments"].drop(columns=["Description"])
 
 st.title("Olist Commerce Decision Lab")
-st.caption("BI + AI academic project using the Olist e-commerce dataset with extended preprocessing and feature analysis")
+st.caption("A comprehensive business intelligence and AI-driven analytics platform for Olist, leveraging advanced data preprocessing, forecasting, and customer segmentation to optimize e-commerce operations.")
 
 with st.sidebar:
     st.header("Filters")
@@ -298,12 +298,46 @@ with tab3:
         forecast_right.metric("R²", f"{float(metrics['r2']):.3f}")
     forecast_right.metric("Accuracy Proxy", f"{kpis['forecast_accuracy_pct']:.1f}%")
 
+    st.markdown(
+        f"**Why {selected_model} won:** same hold-out window for all candidates; "
+        "primary ranking by RMSE (penalises large misses), MAPE as tie-breaker. "
+        "Tree models with lag/rolling features tracked short-term demand better than "
+        "Prophet’s smoother seasonality on this series."
+    )
+
+    residual_col, anomaly_kpi_col = st.columns(2)
+    residuals = combined["daily_revenue"] - combined["predicted_revenue"]
+    residual_fig = px.histogram(
+        residuals,
+        nbins=30,
+        title=f"Residual distribution — {selected_model} (actual − predicted)",
+        labels={"value": "Residual ($)", "count": "Days"},
+    )
+    residual_fig.update_layout(showlegend=False)
+    residual_col.plotly_chart(residual_fig, width="stretch")
+
+    anomalies_df = data["anomalies"]
+    spike_n = int((anomalies_df["anomaly_type"] == "Spike").sum()) if not anomalies_df.empty else 0
+    drop_n = int((anomalies_df["anomaly_type"] == "Drop").sum()) if not anomalies_df.empty else 0
+    total_days = max(int(len(data["daily_sales"])), 1)
+    anomaly_rate = 100.0 * len(anomalies_df) / total_days
+    with anomaly_kpi_col:
+        st.markdown("**Anomaly detection (Isolation Forest + Z-score)**")
+        st.metric("Anomaly days", len(anomalies_df))
+        st.metric("Spikes / Drops", f"{spike_n} / {drop_n}")
+        st.metric("Anomaly rate", f"{anomaly_rate:.1f}% of days")
+        st.caption(
+            "Isolation Forest flags unusual multivariate daily patterns; "
+            "Z-score (|z| ≥ 2.5) adds an interpretable magnitude check. "
+            "This is detection, not revenue forecasting — so it is not in the model table above."
+        )
+
     anomaly_fig = px.scatter(
-        data["anomalies"].assign(size_value=lambda df: df["z_score"].abs().clip(lower=0.1)),
+        anomalies_df.assign(size_value=lambda df: df["z_score"].abs().clip(lower=0.1)) if not anomalies_df.empty else anomalies_df,
         x="date",
         y="daily_revenue",
         color="anomaly_type",
-        size="size_value",
+        size="size_value" if not anomalies_df.empty else None,
         title="Anomaly Detection on Daily Revenue",
     )
     st.plotly_chart(anomaly_fig, width="stretch")

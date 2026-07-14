@@ -1,226 +1,175 @@
 # Olist Commerce Decision Lab
 
-Olist Commerce Decision Lab is a BI + AI project that transforms retail e-commerce data into an interactive decision-support system. It combines business intelligence reporting with machine learning to monitor performance, forecast sales, detect anomalies, segment customers and products, and generate actionable recommendations.
-
-## Repository
+Olist Commerce Decision Lab is a BI + AI academic project that turns Brazilian **Olist** e-commerce data into an interactive decision-support system: KPIs and exploration, multi-model demand forecasting, anomaly detection, customer/product segmentation, and hybrid AI recommendations.
 
 **GitHub:** [Ilyes-Ouni/olist-kpi-forecast-suite](https://github.com/Ilyes-Ouni/olist-kpi-forecast-suite)
-
-Canonical clone URL:
 
 ```text
 https://github.com/Ilyes-Ouni/olist-kpi-forecast-suite.git
 ```
 
-### Recent updates (branding & docs)
+## What the platform answers
 
-- Renamed public project identity from **Retail Decision Intelligence Platform** to **Olist Commerce Decision Lab** (distinct naming; Olist‑specific focus).
-- Refreshed **Streamlit** app title and `page_title` in `app.py`.
-- Aligned **`README.md`**, **`reports/`**, **`presentation/`** outline copy, **`src/bi_ai_retail/reporting.py`** Markdown reports, and **`presentation/generate_presentation.py`** title slide/caption metadata.
-- Presentation export filename set to **`Olist_Commerce_Decision_Lab_Presentation.pptx`**; subtitle text uses the Brazilian e‑commerce (**Olist**) dataset wording.
+- Which categories and states drive revenue?
+- How do delivery performance and reviews affect quality?
+- What revenue can we expect in the next 30 days — and **which model** should we trust?
+- Which daily sales patterns look abnormal?
+- Which customers / products need action?
+- What should management do next (prioritised recommendations)?
 
-## Project Overview
+## Architecture (at a glance)
 
-This project was developed as an academic BI + AI solution using the Olist e-commerce dataset. The objective is to combine descriptive analytics and predictive analytics in one platform so that business performance can be monitored and future-oriented decisions can be supported with data.
+1. **Data prep** — typing, imputation, IQR noise filter, feature fusion, MinMax / Standard scaling, PCA  
+2. **BI layer** — KPIs, geography, categories, monthly trends, Streamlit filters  
+3. **Forecasting** — Gradient Boosting vs XGBoost vs Prophet → select by **RMSE then MAPE**  
+4. **Anomalies** — Isolation Forest + Z-score (Spike / Drop) — *not* a forecast candidate  
+5. **Segmentation** — RFM customers + K-Means products  
+6. **Recommendations** — GRU theme scores → fact pack → Groq LLM (fallback: local NLG)  
+7. **Dashboard** — Streamlit tabs for live academic demonstration  
 
-The platform helps answer questions such as:
+## Team roles (2 students)
 
-- Which product categories and states generate the most revenue?
-- How do delivery performance and customer reviews affect business quality?
-- What sales level can be expected in the next 30 days?
-- Which unusual sales patterns should be investigated?
-- Which customers and products require strategic attention?
+| Role | Focus |
+| --- | --- |
+| **Student A — BI & product** | Preprocessing narrative, KPIs, Executive / Preparation / Segmentation tabs, business storytelling |
+| **Student B — AI & evaluation** | Forecast comparison, residuals, anomalies, GRU + Groq recommendations, metrics & limitations defence |
 
-## Objectives
-
-- Prepare and clean e-commerce transaction data for analysis
-- Build business KPIs for revenue, orders, reviews, and delivery performance
-- Forecast future sales using machine learning
-- Detect anomalies in sales behavior
-- Segment customers and products for decision support
-- Demonstrate advanced preprocessing techniques such as scaling, feature fusion, noise removal, and PCA
-- Deliver an interactive dashboard for academic presentation
+Live click-path and spoken lines: [`presentation/demo_script.md`](presentation/demo_script.md)
 
 ## Dataset
 
-- Source: [Olist merged e-commerce dataset](https://huggingface.co/datasets/abhimlv/Olist-preprocessed-data-merged/resolve/main/orders_final_merged_prepro_and_feature_engg.csv)
-- Type: Brazilian e-commerce transactional dataset
-- Period covered: `2016-10-03` to `2018-08-29`
+- Source: [Olist merged e-commerce dataset (Hugging Face)](https://huggingface.co/datasets/abhimlv/Olist-preprocessed-data-merged/resolve/main/orders_final_merged_prepro_and_feature_engg.csv)
+- Type: Brazilian e-commerce transactions  
+- Period: `2016-10-03` → `2018-08-29`
 
-The dataset includes order, payment, review, customer, seller, freight, and product-related features.
+## Tools
 
-## Methodology
+Python · Pandas · NumPy · scikit-learn · XGBoost · Prophet · PyTorch · Plotly · Streamlit · Joblib · OpenAI SDK (Groq-compatible) · python-pptx
 
-### 1. Data Preparation
-
-The preprocessing stage includes:
-
-- type conversion for date, numeric, and categorical fields
-- missing-value treatment with median and default-category imputation
-- duplicate detection and removal
-- IQR-based noise filtering on key numerical variables
-- feature fusion and derived variables
-- MinMax scaling
-- Standard scaling
-- PCA-based dimension reduction
-
-### 2. Feature Engineering
-
-Examples of engineered features include:
-
-- `product_volume_cm3`
-- `product_density_g_cm3`
-- `freight_per_weight`
-- `payment_per_installment`
-- `review_text_length`
-- `approval_lag_hours`
-- `delivery_delay_days`
-- `price_to_freight_ratio`
-
-### 3. Business Intelligence Layer
-
-The BI component provides:
-
-- revenue and order KPIs
-- average review and late-delivery indicators
-- state and regional performance analysis
-- category performance analysis
-- trend monitoring over time
-
-### 4. Artificial Intelligence Layer
-
-The AI component includes:
-
-- daily sales forecasting with multi-model comparison (Gradient Boosting, XGBoost, Prophet)
-- anomaly detection for unusual revenue patterns
-- customer segmentation using RFM logic
-- product segmentation using clustering
-- dynamic business recommendations using a GRU sequence model
-
-### 5. Dashboard
-
-The dashboard was developed with Streamlit and includes:
-
-- executive BI overview
-- data preparation and preprocessing analysis
-- forecasting and anomaly detection views
-- customer and product segmentation views
-- recommendation panel
-
-## Tools and Technologies
-
-- Python
-- Pandas
-- NumPy
-- scikit-learn
-- PyTorch
-- Plotly
-- Streamlit
-- Joblib
-- python-pptx
-
-## Project Structure
+## Project structure
 
 ```text
 olist-kpi-forecast-suite/
-|-- app.py
-|-- main.py
+|-- app.py                 # Streamlit dashboard
+|-- main.py                # Run full pipeline
 |-- requirements.txt
-|-- dashboard/
-|-- notebooks/
+|-- .env.example           # Groq key template (never commit real .env)
 |-- presentation/
+|   |-- demo_script.md     # Exact demo talk track
+|   |-- presentation_outline.md
+|   `-- generate_presentation.py
 |-- reports/
+|   |-- final_report.md
+|   `-- project_summary.md
 `-- src/bi_ai_retail/
+    |-- data_pipeline.py
+    |-- modeling.py        # Forecast candidates + anomalies + clustering
+    |-- recommendations.py # GRU + fact pack + NLG
+    `-- llm_nlg.py         # Groq wording helper
 ```
 
-## How to Run
+## How to run (reproducible)
 
-Install dependencies:
+### 1. Clone and install
 
 ```powershell
+git clone https://github.com/Ilyes-Ouni/olist-kpi-forecast-suite.git
+cd olist-kpi-forecast-suite
 py -3.14 -m pip install -r requirements.txt
 ```
 
-Run the data pipeline:
+### 2. Optional: Groq wording (recommendations)
+
+```powershell
+copy .env.example .env
+# Edit .env and set GROQ_API_KEY=...
+# Optional: GROQ_MODEL=llama-3.3-70b-versatile
+```
+
+Without a key, recommendations still work via **local fact-pack NLG**.
+
+### 3. Build analytics outputs
 
 ```powershell
 py -3.14 main.py
 ```
 
-Launch the dashboard:
+First run downloads the dataset (may take a few minutes) and writes `data/processed/`.
+
+### 4. Launch the dashboard
 
 ```powershell
 py -3.14 -m streamlit run app.py
 ```
 
-## Main Outputs
-
-The project generates:
-
-- cleaned analytical dataset
-- KPI summaries
-- forecast results
-- anomaly outputs
-- customer and product segments
-- preprocessing outputs for scaling and PCA
-- business recommendations
-
-Additional preprocessing files include:
-
-- `missing_value_report.csv`
-- `scaler_summary.csv`
-- `minmax_scaled_features.csv`
-- `standard_scaled_features.csv`
-- `pca_projection.csv`
-- `preprocessing_summary.json`
-
-## Results Summary
-
-- Revenue analysed: `$11.46M`
-- Profit analysed: `$2.26M`
-- Gross margin: `19.7%`
-- Orders analysed: `80,168`
-- Customers analysed: `77,775`
-- States analysed: `27`
-- Repeat customer rate: `2.8%`
-- Forecasted revenue for the next 30 days: `$463,643`
-- Detected anomaly days: `20`
-- Rows after cleaning: `95,351`
-- Noisy rows removed: `17,839`
+Open **http://localhost:8501**. If cards look outdated: **☰ → Clear cache → Rerun**.
 
 ## Forecasting model selection
 
-The forecasting layer compares **Gradient Boosting**, **XGBoost**, and **Prophet** on the same hold-out period.
+| Candidate | Role |
+| --- | --- |
+| Gradient Boosting | Sklearn baseline with lag / rolling features |
+| XGBoost | Strong tree competitor on the same features |
+| Prophet | Classical trend + seasonality baseline |
 
-Metrics stored per model: **MAE, MSE, RMSE, MAPE, R²**.
+**Metrics:** MAE, MSE, RMSE, MAPE, R² (same hold-out for all).  
+**Rule:** lowest **RMSE**, then **MAPE**.  
+**Winner only** writes the official next-30-day forecast (KPIs + recommendation facts).
 
-**Selection rule:** lowest RMSE, then lowest MAPE as a tie-breaker. Only the winner produces the official next-30-day forecast shown in KPIs and recommendations.
+Dashboard extras: candidate overlay chart, residual histogram, “why winner” note.
 
-## Recommendation Logic
+Isolation Forest is for **anomaly detection**, not this comparison table.
 
-The recommendation module uses a hybrid **GRU + fact-pack + Groq LLM** pipeline:
+## Anomaly detection
 
-1. Train a small GRU on 14-day multivariate sales sequences to score action themes.
-2. Build a structured **fact pack** from forecasts, anomalies, category/customer/product/geography analytics.
-3. Ask **Groq** (`llama-3.3-70b-versatile` by default) to write action/evidence sentences from that fact pack.
-4. If the API key is missing or the call fails, fall back to local fact-pack NLG.
+- Isolation Forest (`contamination=0.03`) + Z-score (`|z| ≥ 2.5`)
+- Spike vs Drop labels  
+- UI shows counts, rate (% of days), and scatter plot  
 
-Secrets: put `GROQ_API_KEY` in a local `.env` file (see `.env.example`). `.env` is gitignored and must never be committed.
+## Recommendation logic
 
-## Academic Value
+Hybrid **Option D** pipeline:
 
-This project demonstrates practical skills in:
+1. GRU scores themes from 14-day sequences (weak labels only for training).  
+2. Fact pack aggregates live evidence.  
+3. Groq `llama-3.3-70b-versatile` composes action/evidence text (fallback: local NLG).  
 
-- data cleaning and preprocessing
-- feature engineering
-- KPI design
-- business intelligence reporting
-- machine learning for forecasting
-- anomaly detection
-- customer and product segmentation
-- dashboard development
-- business-oriented data storytelling
+Secrets stay in gitignored `.env` (see `.env.example`).
 
-## Conclusion
+## Main outputs
 
-Olist Commerce Decision Lab shows how BI and AI can be combined in a realistic e-commerce use case. The BI component explains what has happened in the business, while the AI component provides predictive and analytical support for decision-making.
+Under `data/processed/` (local; gitignored):
+
+- `clean_retail.csv`, KPI JSON, segment tables  
+- `forecast_actuals.csv`, `future_forecast.csv`  
+- `model_comparison.csv`, `forecast_candidate_actuals.csv`  
+- `anomalies.csv`, `recommendations.csv`  
+- preprocessing / PCA artefacts  
+
+## Results summary (reference run)
+
+- Revenue: `$11.46M` · Profit: `$2.26M` · Gross margin: `19.7%`  
+- Orders: `80,168` · Customers: `77,775` · States: `27`  
+- Repeat customer rate: `2.8%`  
+- Hold-out winner typically **Gradient Boosting** (~RMSE 6.0k, MAPE ~26%)  
+- Anomaly days: ~`20`  
+- Rows after cleaning: `95,351` (noisy rows removed: `17,839`)  
+
+## Limitations (be ready to discuss)
+
+- Dataset ends in 2018 → limited external validity  
+- Recursive multi-step forecasts can accumulate error  
+- Prophet may underfit volatile daily demand  
+- GRU uses weakly supervised training labels  
+- LLM wording needs fact constraints + offline fallback  
+- K-Means business labels are interpretive  
+
+## Documentation for marking / viva
+
+- Full write-up: [`reports/final_report.md`](reports/final_report.md)  
+- Slide outline: [`presentation/presentation_outline.md`](presentation/presentation_outline.md)  
+- **Exact demo script:** [`presentation/demo_script.md`](presentation/demo_script.md)  
+
+## Academic skills demonstrated
+
+Data cleaning · feature engineering · KPI design · BI storytelling · multi-model forecasting & selection · anomaly detection · segmentation · sequence model + LLM hybrid recommendations · interactive dashboard · critical limitations analysis

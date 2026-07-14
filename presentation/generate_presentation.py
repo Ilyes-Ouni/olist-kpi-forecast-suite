@@ -29,16 +29,28 @@ COLORS = {
 
 
 def load_inputs() -> dict[str, object]:
+    country_path = PROCESSED_DIR / "country_performance.csv"
+    if not country_path.exists():
+        # Pipeline writes state-level performance; rename for slide charts.
+        state = pd.read_csv(PROCESSED_DIR / "state_performance.csv")
+        country = state.rename(columns={"state": "Country"})
+    else:
+        country = pd.read_csv(country_path)
+
+    comparison_path = PROCESSED_DIR / "model_comparison.csv"
+    comparison = pd.read_csv(comparison_path) if comparison_path.exists() else pd.DataFrame()
+
     return {
         "kpis": json.loads((PROCESSED_DIR / "kpis.json").read_text(encoding="utf-8")),
         "metrics": json.loads((PROCESSED_DIR / "model_metrics.json").read_text(encoding="utf-8")),
         "monthly": pd.read_csv(PROCESSED_DIR / "monthly_performance.csv"),
         "category": pd.read_csv(PROCESSED_DIR / "category_performance.csv"),
-        "country": pd.read_csv(PROCESSED_DIR / "country_performance.csv"),
+        "country": country,
         "future": pd.read_csv(PROCESSED_DIR / "future_forecast.csv"),
         "anomalies": pd.read_csv(PROCESSED_DIR / "anomalies.csv"),
         "segments": pd.read_csv(PROCESSED_DIR / "product_segments.csv"),
         "recommendations": pd.read_csv(PROCESSED_DIR / "recommendations.csv"),
+        "comparison": comparison,
     }
 
 
@@ -122,6 +134,9 @@ def build_presentation(data: dict[str, object]) -> None:
     anomalies = data["anomalies"]
     segments = data["segments"]
     recommendations = data["recommendations"]
+    comparison = data.get("comparison", pd.DataFrame())
+    selected_model = str(metrics.get("selected_model", "GradientBoosting"))
+    states_label = str(kpis.get("states_count", kpis.get("countries_count", country.shape[0])))
 
     slide = prs.slides.add_slide(blank)
     bg = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.RECTANGLE, 0, 0, prs.slide_width, prs.slide_height)
@@ -156,7 +171,7 @@ def build_presentation(data: dict[str, object]) -> None:
         width=6.2,
     )
     add_kpi_card(slide, 7.1, 1.9, "Orders Analysed", f"{kpis['orders_count']:,}", COLORS["teal"])
-    add_kpi_card(slide, 10.0, 1.9, "Countries", f"{kpis['countries_count']}", COLORS["gold"])
+    add_kpi_card(slide, 10.0, 1.9, "States", f"{states_label}", COLORS["gold"])
     add_kpi_card(slide, 7.1, 3.5, "Customers", f"{kpis['customers_count']:,}", COLORS["navy"])
     add_kpi_card(slide, 10.0, 3.5, "30-Day Growth", f"{kpis['sales_growth_pct']:.1f}%", COLORS["red"])
 
@@ -165,9 +180,9 @@ def build_presentation(data: dict[str, object]) -> None:
     add_bullets(
         slide,
         [
-            "BI layer: executive KPIs, category analysis, country performance, and sales trends.",
-            "AI layer: demand forecasting, anomaly detection, product segmentation, and recommendations.",
-            "Output: an interactive decision-support dashboard for managers and analysts.",
+            "BI layer: executive KPIs, category analysis, state performance, and sales trends.",
+            "AI layer: multi-model forecasting (GBR / XGBoost / Prophet), Isolation Forest anomalies, segmentation, GRU+Groq recommendations.",
+            "Output: an interactive Streamlit decision lab with explicit evaluation metrics.",
         ],
         width=6.2,
     )
@@ -181,9 +196,9 @@ def build_presentation(data: dict[str, object]) -> None:
     add_bullets(
         slide,
         [
-            "Open-source Online Retail transaction dataset.",
-            "Main fields: invoice number, product, quantity, date, unit price, customer, and country.",
-            "Cleaned by removing duplicates and invalid transactions, then enriched with revenue, profit, region, and category fields.",
+            "Brazilian e-commerce (Olist) merged transaction dataset.",
+            "Fields include order, product, payment, review, customer, seller, freight, and geography.",
+            "Period covered: 2016-10-03 to 2018-08-29 after cleaning and feature engineering.",
         ],
         width=5.9,
     )
@@ -205,12 +220,13 @@ def build_presentation(data: dict[str, object]) -> None:
     add_bullets(
         slide,
         [
-            "1. Data cleaning and preprocessing",
+            "1. Data cleaning and preprocessing (IQR, scaling, PCA)",
             "2. KPI and business analysis",
-            "3. Forecasting model",
+            "3. Multi-model forecasting + selection",
             "4. Anomaly detection",
-            "5. Product segmentation",
-            "6. Dashboard development",
+            "5. Customer and product segmentation",
+            "6. GRU + fact-pack recommendations",
+            "7. Streamlit dashboard",
         ],
         width=5.2,
     )
@@ -261,9 +277,9 @@ def build_presentation(data: dict[str, object]) -> None:
     add_bullets(
         slide,
         [
-            f"Forecasting MAE: {metrics['mae']:.0f}",
-            f"Forecasting RMSE: {metrics['rmse']:.0f}",
-            f"Forecasting MAPE: {metrics['mape']:.1f}%",
+            f"Selected forecast model: {selected_model}",
+            f"MAE: {float(metrics['mae']):.0f} | RMSE: {float(metrics['rmse']):.0f}",
+            f"MAPE: {float(metrics['mape']):.1f}% | R²: {float(metrics.get('r2', 0)):.3f}",
             f"Next 30-day revenue forecast: ${kpis['forecast_30d_revenue']:,.0f}",
             f"Anomalies detected: {len(anomalies)}",
             f"Product segments created: {segments['segment_name'].nunique()}",
@@ -283,6 +299,33 @@ def build_presentation(data: dict[str, object]) -> None:
         6.4,
         4.2,
     )
+
+    slide = prs.slides.add_slide(blank)
+    style_title(slide, "6b. Forecast Model Selection")
+    if not comparison.empty and {"model", "rmse", "mape"}.issubset(comparison.columns):
+        sel_lines = [
+            "Candidates: Gradient Boosting, XGBoost, Prophet (same hold-out).",
+            "Metrics: MAE, MSE, RMSE, MAPE, R².",
+            "Rule: lowest RMSE, then MAPE.",
+        ]
+        for _, row in comparison.sort_values("rmse").iterrows():
+            mark = " ← selected" if bool(row.get("selected", False)) else ""
+            sel_lines.append(
+                f"{row['model']}: RMSE={float(row['rmse']):.0f}, MAPE={float(row['mape']):.1f}%{mark}"
+            )
+        add_bullets(slide, sel_lines, width=11.5, height=5.0)
+    else:
+        add_bullets(
+            slide,
+            [
+                "Candidates: Gradient Boosting, XGBoost, Prophet.",
+                "Selection rule: lowest RMSE then MAPE.",
+                f"Winner in metrics file: {selected_model}",
+                "Isolation Forest is anomaly detection — not listed as a forecast candidate.",
+            ],
+            width=11.5,
+            height=4.5,
+        )
 
     slide = prs.slides.add_slide(blank)
     style_title(slide, "7. Product Segmentation and Anomalies")
@@ -325,10 +368,33 @@ def build_presentation(data: dict[str, object]) -> None:
     slide = prs.slides.add_slide(blank)
     style_title(slide, "8. Business Recommendations")
     rec_items = [
-        f"{row['theme']}: {row['recommendation']} ({row['evidence']})"
-        for _, row in recommendations.iterrows()
+        f"{row['theme']}: {row['recommendation']}"
+        for _, row in recommendations.head(5).iterrows()
     ]
-    add_bullets(slide, rec_items, width=11.5, height=4.8)
+    add_bullets(
+        slide,
+        [
+            "Pipeline: GRU theme scores → structured fact pack → Groq LLM (fallback local NLG).",
+            *rec_items,
+        ],
+        width=11.5,
+        height=5.0,
+    )
+
+    slide = prs.slides.add_slide(blank)
+    style_title(slide, "8b. Limitations")
+    add_bullets(
+        slide,
+        [
+            "Dataset ends in 2018 — limited external validity for today’s market.",
+            "Recursive multi-step tree forecasts can accumulate error over 30 days.",
+            "GRU training uses weakly supervised heuristic labels (honest coursework choice).",
+            "LLM wording depends on fact-pack constraints and API availability (offline fallback exists).",
+            "K-Means segment names are interpretive business labels.",
+        ],
+        width=11.5,
+        height=5.0,
+    )
 
     slide = prs.slides.add_slide(blank)
     style_title(slide, "9. Deliverables")
@@ -337,10 +403,9 @@ def build_presentation(data: dict[str, object]) -> None:
         [
             "Runnable Python pipeline",
             "Interactive Streamlit BI dashboard",
-            "Processed CSV outputs for reporting or Power BI",
-            "Forecast, anomaly, and segmentation outputs",
-            "Final report and project documentation",
-            "GitHub-ready repository structure",
+            "Model comparison + anomaly + segmentation outputs",
+            "Final report, presentation outline, and live demo script",
+            "GitHub repository",
         ],
         width=5.8,
     )
@@ -364,16 +429,16 @@ def build_presentation(data: dict[str, object]) -> None:
     add_bullets(
         slide,
         [
-            "The project combines descriptive BI and predictive AI in one realistic retail solution.",
-            "It moves business users from historical reporting to forward-looking decision support.",
-            "The approach is feasible, explainable, and suitable for academic presentation and portfolio use.",
+            "BI explains the past; evaluated AI supports the next decision.",
+            "Explicit forecast comparison + limitations make the work academically defensible.",
+            "The live Streamlit lab is ready for demonstration and portfolio use.",
         ],
         width=11.2,
         height=3.5,
     )
     closing = slide.shapes.add_textbox(Inches(0.8), Inches(5.6), Inches(11.5), Inches(0.8))
     cp = closing.text_frame.paragraphs[0]
-    cp.text = "Thank you"
+    cp.text = "Thank you — questions welcome"
     cp.font.size = Pt(26)
     cp.font.bold = True
     cp.font.color.rgb = COLORS["teal"]
