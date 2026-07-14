@@ -167,6 +167,7 @@ Under `data/processed/` (local; gitignored):
 ## Documentation for marking / viva
 
 - Full write-up: [`reports/final_report.md`](reports/final_report.md)  
+- **Rapport PFE LaTeX (style TEK-UP):** [`reports/pfe_tekup/`](reports/pfe_tekup/) — auteurs Ilyes El Ouni & Montassar Zouaghi  
 - Slide outline: [`presentation/presentation_outline.md`](presentation/presentation_outline.md)  
 - **Exact demo script:** [`presentation/demo_script.md`](presentation/demo_script.md)  
 
